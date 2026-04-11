@@ -10,9 +10,10 @@ Ordered list of buildable increments. Each slice produces something testable.
 - `adapters/base.py` - adapter interface
 - End state: installable package, contracts defined, nothing runs yet
 
-## 1b - Pipeline
+## ~~1b - Pipeline~~ done
 
-- [ ] `pipeline.py` - the 7-step orchestration working against the interfaces
+- `pipeline.py` - the 7-step orchestration working against the interfaces
+- `errors.py` - shared error vocabulary (pipeline raises, API translates)
 - End state: core logic exists, no way to call it yet
 
 ## 1c - API + wiring
