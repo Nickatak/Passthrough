@@ -16,10 +16,10 @@ Ordered list of buildable increments. Each slice produces something testable.
 - `errors.py` - shared error vocabulary (pipeline raises, API translates)
 - End state: core logic exists, no way to call it yet
 
-## 1c - API + wiring
+## ~~1c - API + wiring~~ done
 
-- [ ] `api.py` - endpoint, request/response models
-- [ ] `main.py` - composition root with a stub driver (returns canned HTML)
+- `api.py` - endpoint, request/response models
+- `main.py` - composition root with a stub driver (returns canned HTML)
 - End state: `curl` it, get a response back. Full loop works.
 
 ## 2 - Camoufox driver
