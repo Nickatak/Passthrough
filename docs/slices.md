@@ -22,11 +22,27 @@ Ordered list of buildable increments. Each slice produces something testable.
 - `main.py` - composition root with a stub driver (returns canned HTML)
 - End state: `curl` it, get a response back. Full loop works.
 
-## 2 - Camoufox driver
+## 2a - Browser lifecycle
 
-- [ ] `drivers/camoufox.py` - real browser navigation, page content extraction, cookie/header capture
-- [ ] Swap the stub for Camoufox in `main.py`
-- End state: hit a real URL, get back real content (no challenge handling)
+- [ ] `CamoufoxDriver.start()` and `stop()` - launch/kill the browser
+- End state: Firefox starts, shuts down cleanly
+
+## 2b - Navigation
+
+- [ ] `new_page()`, `close_page()`, `goto()`
+- End state: can visit a real URL, page object is usable
+
+## 2c - Capture
+
+- [ ] `capture(page)` - extract status, headers, cookies, body
+- `goto()` stashes the Response in `self._responses: dict[Page, Response]`
+- `capture()` reads from it, `close_page()` cleans up the entry
+- End state: full page data extraction works
+
+## 2d - Integration
+
+- [ ] Swap StubDriver for CamoufoxDriver in `main.py`
+- End state: curl a real URL end-to-end, get back real content (no challenge handling)
 
 ## 3 - Cloudflare adapter
 
