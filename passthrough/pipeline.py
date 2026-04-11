@@ -41,7 +41,7 @@ class Pipeline:
 
             # Step 5: Solve - if an adapter claimed the page
             if adapter is not None:
-                await self._solve(adapter, page)
+                await self._solve(adapter, page, url)
 
             # Step 6: Capture
             return await self._capture(page)
@@ -83,11 +83,16 @@ class Pipeline:
         # No adapter claimed it - page is clear
         return None
 
-    async def _solve(self, adapter: ChallengeAdapter, page: Page) -> None:
+    async def _solve(self, adapter: ChallengeAdapter, page: Page, url: str) -> None:
         try:
             await adapter.solve(page)
         except Exception as exc:
             raise SolveFailed(f"{adapter.name} solve failed: {exc}")
+
+        # Re-navigate to get a clean Response for capture.
+        # After solve, the browser has cf_clearance cookies, so
+        # this returns the real page with correct status/headers.
+        await self._navigate(page, url)
 
     async def _capture(self, page: Page) -> PageContent:
         try:

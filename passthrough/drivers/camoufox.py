@@ -24,6 +24,9 @@ class CamoufoxDriver(Driver):
         self._browser = await AsyncNewBrowser(
             self._playwright,
             headless=self._headless,
+            humanize=True,
+            disable_coop=True,
+            i_know_what_im_doing=True,
         )
 
     async def new_page(self) -> Page:

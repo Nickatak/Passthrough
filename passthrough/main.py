@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI
 
+from passthrough.adapters.cloudflare import CloudflareAdapter
 from passthrough.api import create_router
 from passthrough.drivers.camoufox import CamoufoxDriver
 from passthrough.pipeline import Pipeline
@@ -10,7 +11,7 @@ from passthrough.pipeline import Pipeline
 
 def create_app() -> FastAPI:
     driver = CamoufoxDriver(headless=True)
-    pipeline = Pipeline(driver=driver, adapters=[])
+    pipeline = Pipeline(driver=driver, adapters=[CloudflareAdapter()])
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):

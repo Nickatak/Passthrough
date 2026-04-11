@@ -44,11 +44,13 @@ Ordered list of buildable increments. Each slice produces something testable.
 - Swap StubDriver for CamoufoxDriver in `main.py`
 - End state: curl a real URL end-to-end, get back real content (no challenge handling)
 
-## 3 - Cloudflare adapter
+## ~~3 - Cloudflare adapter~~ done
 
-- [ ] `adapters/cloudflare.py` - detection logic (status code, headers, title, DOM)
-- [ ] Solve strategies (JS challenge wait, Turnstile click)
-- [ ] Wire into the pipeline
+- `adapters/cloudflare.py` - detection via page title and DOM inspection
+- JS challenge solve: wait for title change (auto-solves via Camoufox stealth)
+- Turnstile solve: click checkbox in cross-origin iframe (humanize + disable_coop)
+- Pipeline post-solve reload for clean Response capture
+- CamoufoxDriver: enabled humanize, disable_coop, i_know_what_im_doing
 - End state: navigate through Cloudflare challenges
 
 ## 4 - Hardening
