@@ -1,0 +1,18 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "passthrough"
+version = "0.1.0"
+description = "Headless browser service that navigates Cloudflare and similar browser challenges"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "camoufox[geoip]",
+    "playwright",
+]
+
+[project.scripts]
+passthrough = "passthrough.main:main"
