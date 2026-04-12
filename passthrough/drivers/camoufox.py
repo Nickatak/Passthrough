@@ -26,8 +26,15 @@ class CamoufoxDriver(Driver):
         self._browser = await AsyncNewBrowser(
             self._playwright,
             headless=self._headless,
+            # Generate realistic mouse curves and timing on click actions
+            # so automation doesn't look like instant teleport-and-click.
             humanize=True,
+            # Disable Cross-Origin Opener Policy so Playwright can reach
+            # into cross-origin iframes (e.g. Cloudflare Turnstile widget).
+            # Safe here because this browser has no user session to protect.
             disable_coop=True,
+            # Required acknowledgment for disable_coop - Camoufox's way of
+            # confirming you understand the security implications.
             i_know_what_im_doing=True,
         )
 
