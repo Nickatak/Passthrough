@@ -10,11 +10,13 @@ from passthrough.pipeline import Pipeline
 
 
 def create_app() -> FastAPI:
+    """Composition root: wire up driver, adapters, pipeline, and routes."""
     driver = CamoufoxDriver(headless=True)
     pipeline = Pipeline(driver=driver, adapters=[CloudflareAdapter()])
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        """Start the browser on boot, shut it down on exit."""
         await driver.start()
         yield
         await driver.stop()
@@ -28,6 +30,7 @@ app = create_app()
 
 
 def main():
+    """Entry point for `python -m passthrough` or the pyproject script."""
     uvicorn.run("passthrough.main:app", host="0.0.0.0", port=8191, reload=True)
 
 

@@ -21,6 +21,7 @@ class Pipeline:
     """
 
     def __init__(self, driver: Driver, adapters: list[ChallengeAdapter]):
+        """Wire up the driver and adapters. Order of adapters = detection priority."""
         self.driver = driver
         self.adapters = adapters
 
@@ -52,6 +53,7 @@ class Pipeline:
                 await self.driver.close_page(page)
 
     def _validate(self, url: str, method: str) -> None:
+        """Reject bad input before touching a browser."""
         if method.upper() != "GET":
             raise InvalidRequest(f"Unsupported method: {method}. Only GET is supported.")
 
@@ -62,6 +64,7 @@ class Pipeline:
             raise InvalidRequest(f"Invalid URL: missing host.")
 
     async def _navigate(self, page: Page, url: str) -> None:
+        """Delegate navigation to the driver, wrapping failures as NavigationFailed."""
         try:
             await self.driver.goto(page, url)
         except PlaywrightTimeout:
@@ -84,6 +87,7 @@ class Pipeline:
         return None
 
     async def _solve(self, adapter: ChallengeAdapter, page: Page, url: str) -> None:
+        """Run the adapter's solve, then re-navigate to capture a clean response."""
         try:
             await adapter.solve(page)
         except Exception as exc:
@@ -95,6 +99,7 @@ class Pipeline:
         await self._navigate(page, url)
 
     async def _capture(self, page: Page) -> PageContent:
+        """Pull page content from the driver, wrapping failures as CaptureFailed."""
         try:
             return await self.driver.capture(page)
         except Exception as exc:

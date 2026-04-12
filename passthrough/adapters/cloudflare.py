@@ -6,6 +6,7 @@ from passthrough.adapters.base import ChallengeAdapter, DetectResult
 
 
 class _ChallengeType(Enum):
+    """Cloudflare challenge variants we can solve."""
     JS_CHALLENGE = auto()
     TURNSTILE = auto()
 
@@ -23,8 +24,11 @@ class CloudflareAdapter(ChallengeAdapter):
     """
 
     def __init__(self) -> None:
-        # Keyed by Page to avoid concurrency issues if multiple
-        # requests share the same adapter instance.
+        """Initialize with an empty challenge-type map.
+
+        Keyed by Page to avoid concurrency issues if multiple
+        requests share the same adapter instance.
+        """
         self._challenge_types: dict[Page, _ChallengeType] = {}
 
     @property
@@ -32,6 +36,11 @@ class CloudflareAdapter(ChallengeAdapter):
         return "cloudflare"
 
     async def detect(self, page: Page) -> DetectResult:
+        """Classify the page as clear, challenged, or blocked.
+
+        Checks title first (cheap), then body text and DOM elements.
+        Stashes the challenge type for solve() to pick up.
+        """
         title = await page.title()
 
         if title != "Just a moment...":
@@ -64,6 +73,7 @@ class CloudflareAdapter(ChallengeAdapter):
         return DetectResult.CHALLENGED
 
     async def solve(self, page: Page) -> None:
+        """Dispatch to the appropriate solve strategy based on detected challenge type."""
         challenge_type = self._challenge_types.pop(page, None)
         if challenge_type is None:
             raise RuntimeError("solve() called without prior detect()")
@@ -74,6 +84,7 @@ class CloudflareAdapter(ChallengeAdapter):
             await self._solve_turnstile(page)
 
     async def _solve_js_challenge(self, page: Page) -> None:
+        """Wait for Cloudflare's JS checks to auto-submit and redirect."""
         # JS challenges auto-solve - Cloudflare's JS runs environment
         # checks and auto-submits if the browser passes. We just wait
         # for the title to change, signaling the redirect to the real page.
@@ -84,6 +95,7 @@ class CloudflareAdapter(ChallengeAdapter):
         await page.wait_for_load_state("load", timeout=_JS_CHALLENGE_TIMEOUT)
 
     async def _solve_turnstile(self, page: Page) -> None:
+        """Click the Turnstile checkbox and wait for validation redirect."""
         # Locate the Turnstile iframe and click the checkbox inside it.
         # Camoufox's humanize handles mouse movement; disable_coop
         # allows clicking into the cross-origin iframe.

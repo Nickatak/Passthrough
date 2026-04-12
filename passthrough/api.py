@@ -10,11 +10,13 @@ router = APIRouter()
 
 
 class RequestBody(BaseModel):
+    """Inbound request: which URL to fetch and with what HTTP method."""
     url: str
     method: str = Field(default="GET")
 
 
 class CookieResponse(BaseModel):
+    """Single cookie from the target site's response."""
     name: str
     value: str
     domain: str
@@ -25,6 +27,7 @@ class CookieResponse(BaseModel):
 
 
 class SuccessResponse(BaseModel):
+    """Full response from the target site after challenge resolution."""
     status: int
     headers: dict[str, str]
     cookies: list[CookieResponse]
@@ -32,6 +35,7 @@ class SuccessResponse(BaseModel):
 
 
 class ErrorResponse(BaseModel):
+    """Structured error returned when the pipeline fails."""
     error: str
     message: str
 
@@ -46,6 +50,7 @@ def create_router(pipeline: Pipeline) -> APIRouter:
 
     @router.post("/request", response_model=SuccessResponse)
     async def handle_request(body: RequestBody):
+        """Run the URL through the pipeline and return the result or a structured error."""
         try:
             result = await pipeline.process(body.url, body.method)
         except PassthroughError as exc:
