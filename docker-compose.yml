@@ -1,0 +1,5 @@
+services:
+  passthrough:
+    build: .
+    ports:
+      - "8191:8191"
