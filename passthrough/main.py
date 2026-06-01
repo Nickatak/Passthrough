@@ -6,13 +6,18 @@ from fastapi import FastAPI
 from passthrough.adapters.cloudflare import CloudflareAdapter
 from passthrough.api import create_router
 from passthrough.drivers.camoufox import CamoufoxDriver
+from passthrough.extractors.facebook import FacebookMarketplaceExtractor
 from passthrough.pipeline import Pipeline
 
 
 def create_app() -> FastAPI:
-    """Composition root: wire up driver, adapters, pipeline, and routes."""
+    """Composition root: wire up driver, adapters, extractors, pipeline, and routes."""
     driver = CamoufoxDriver(headless=True)
-    pipeline = Pipeline(driver=driver, adapters=[CloudflareAdapter()])
+    pipeline = Pipeline(
+        driver=driver,
+        adapters=[CloudflareAdapter()],
+        extractors=[FacebookMarketplaceExtractor()],
+    )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):

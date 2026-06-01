@@ -14,6 +14,13 @@ class InvalidRequest(PassthroughError):
         super().__init__("invalid_request", message)
 
 
+class UnknownExtractor(PassthroughError):
+    """The /request/{extractor} route named an extractor that isn't registered."""
+
+    def __init__(self, message: str):
+        super().__init__("unknown_extractor", message)
+
+
 class NavigationFailed(PassthroughError):
     """Browser couldn't reach the page - DNS, timeout, SSL, connection refused."""
 

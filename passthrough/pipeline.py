@@ -1,43 +1,76 @@
 import asyncio
+from dataclasses import dataclass
 from urllib.parse import urlparse
 
 from playwright.async_api import Page, TimeoutError as PlaywrightTimeout
 
 from passthrough.adapters.base import ChallengeAdapter, DetectResult
 from passthrough.drivers.base import Driver, PageContent
+from passthrough.extractors.base import Extractor
 from passthrough.errors import (
     ChallengeBlocked,
     CaptureFailed,
     InvalidRequest,
     NavigationFailed,
     SolveFailed,
+    UnknownExtractor,
 )
 
 
-class Pipeline:
-    """Orchestrates the request flow: receive -> navigate -> detect -> solve -> capture -> return.
+@dataclass
+class ProcessResult:
+    """Outcome of a request: the raw capture plus optional extracted data.
 
-    Works entirely through the Driver and ChallengeAdapter interfaces.
+    `extracted` is set when an extractor ran and succeeded; `extract_error`
+    is set when one ran and failed (the raw content is still returned so the
+    caller can fall back).
+    """
+
+    content: PageContent
+    extracted: dict | None = None
+    extract_error: str | None = None
+
+
+class Pipeline:
+    """Orchestrates the request flow: navigate -> detect -> solve -> capture -> extract -> return.
+
+    Works entirely through the Driver, ChallengeAdapter, and Extractor interfaces.
     Does not know which browser or which providers are in use.
 
     The driver holds one reused tab, so every request operates on shared
-    browser state. A lock serializes the whole flow (and restart) - one
-    request at a time, which is also how the tool is used in practice.
+    browser state. A lock serializes the browser-touching part of the flow
+    (and restart) - one request at a time, which is also how the tool is used
+    in practice. Extraction runs after the lock: it's pure parsing of the
+    captured string and needs no browser access.
     """
 
-    def __init__(self, driver: Driver, adapters: list[ChallengeAdapter]):
-        """Wire up the driver and adapters. Order of adapters = detection priority."""
+    def __init__(
+        self,
+        driver: Driver,
+        adapters: list[ChallengeAdapter],
+        extractors: list[Extractor] | None = None,
+    ):
+        """Wire up the driver, adapters, and extractors.
+
+        Order of adapters = detection priority. Extractors are keyed by name
+        for /request/{extractor} lookup.
+        """
         self.driver = driver
         self.adapters = adapters
+        self._extractors = {e.name: e for e in (extractors or [])}
         self._lock = asyncio.Lock()
 
-    async def process(self, url: str, method: str = "GET") -> PageContent:
-        # Step 1: Receive - validate before touching a browser
+    async def process(
+        self, url: str, method: str = "GET", extractor: str | None = None
+    ) -> ProcessResult:
+        # Step 1: Receive - validate before touching a browser. Resolve the
+        # extractor up front too, so a bogus name fails fast without a fetch.
         self._validate(url, method)
+        ext = self._resolve_extractor(extractor)
 
-        # Serialize the whole flow: navigate -> detect -> solve -> capture all
-        # operate on the one shared tab and must not interleave with another
-        # request or a restart.
+        # Serialize the browser-touching flow: navigate -> detect -> solve ->
+        # capture all operate on the one shared tab and must not interleave
+        # with another request or a restart.
         async with self._lock:
             page = self.driver.page()
 
@@ -52,12 +85,32 @@ class Pipeline:
                 await self._solve(adapter, page, url)
 
             # Step 5: Capture
-            return await self._capture()
+            content = await self._capture()
+
+        # Step 6: Extract (outside the lock - pure parsing, no browser access)
+        if ext is None:
+            return ProcessResult(content=content)
+        try:
+            return ProcessResult(content=content, extracted=ext.extract(content))
+        except Exception as exc:
+            # A parse failure doesn't fail the fetch - hand back the raw body
+            # so the caller isn't empty-handed, with the error attached.
+            return ProcessResult(content=content, extract_error=f"{ext.name} extraction failed: {exc}")
 
     async def restart(self) -> None:
         """Nuke and relaunch the browser. Holds the lock so it can't run mid-request."""
         async with self._lock:
             await self.driver.restart()
+
+    def _resolve_extractor(self, name: str | None) -> Extractor | None:
+        """Look up a requested extractor by name, or None if none was requested."""
+        if name is None:
+            return None
+        ext = self._extractors.get(name)
+        if ext is None:
+            available = sorted(self._extractors) or ["(none registered)"]
+            raise UnknownExtractor(f"No extractor named {name!r}. Available: {available}")
+        return ext
 
     def _validate(self, url: str, method: str) -> None:
         """Reject bad input before touching a browser."""
