@@ -1,3 +1,4 @@
+import asyncio
 from urllib.parse import urlparse
 
 from playwright.async_api import Page, TimeoutError as PlaywrightTimeout
@@ -14,43 +15,49 @@ from passthrough.errors import (
 
 
 class Pipeline:
-    """Orchestrates the request flow: receive -> prepare -> navigate -> detect -> solve -> capture -> return.
+    """Orchestrates the request flow: receive -> navigate -> detect -> solve -> capture -> return.
 
     Works entirely through the Driver and ChallengeAdapter interfaces.
     Does not know which browser or which providers are in use.
+
+    The driver holds one reused tab, so every request operates on shared
+    browser state. A lock serializes the whole flow (and restart) - one
+    request at a time, which is also how the tool is used in practice.
     """
 
     def __init__(self, driver: Driver, adapters: list[ChallengeAdapter]):
         """Wire up the driver and adapters. Order of adapters = detection priority."""
         self.driver = driver
         self.adapters = adapters
+        self._lock = asyncio.Lock()
 
     async def process(self, url: str, method: str = "GET") -> PageContent:
         # Step 1: Receive - validate before touching a browser
         self._validate(url, method)
 
-        page: Page | None = None
-        try:
-            # Step 2: Prepare - stealth config is the driver's responsibility
-            page = await self.driver.new_page()
+        # Serialize the whole flow: navigate -> detect -> solve -> capture all
+        # operate on the one shared tab and must not interleave with another
+        # request or a restart.
+        async with self._lock:
+            page = self.driver.page()
 
-            # Step 3: Navigate
-            await self._navigate(page, url)
+            # Step 2: Navigate
+            await self._navigate(url)
 
-            # Step 4: Detect - check registered adapters
+            # Step 3: Detect - check registered adapters
             adapter = await self._detect(page)
 
-            # Step 5: Solve - if an adapter claimed the page
+            # Step 4: Solve - if an adapter claimed the page
             if adapter is not None:
                 await self._solve(adapter, page, url)
 
-            # Step 6: Capture
-            return await self._capture(page)
+            # Step 5: Capture
+            return await self._capture()
 
-        finally:
-            # Always release the page, even on failure
-            if page is not None:
-                await self.driver.close_page(page)
+    async def restart(self) -> None:
+        """Nuke and relaunch the browser. Holds the lock so it can't run mid-request."""
+        async with self._lock:
+            await self.driver.restart()
 
     def _validate(self, url: str, method: str) -> None:
         """Reject bad input before touching a browser."""
@@ -63,10 +70,10 @@ class Pipeline:
         if not parsed.netloc:
             raise InvalidRequest(f"Invalid URL: missing host.")
 
-    async def _navigate(self, page: Page, url: str) -> None:
+    async def _navigate(self, url: str) -> None:
         """Delegate navigation to the driver, wrapping failures as NavigationFailed."""
         try:
-            await self.driver.goto(page, url)
+            await self.driver.goto(url)
         except PlaywrightTimeout:
             raise NavigationFailed(f"Timed out navigating to {url}")
         except Exception as exc:
@@ -96,11 +103,11 @@ class Pipeline:
         # Re-navigate to get a clean Response for capture.
         # After solve, the browser has cf_clearance cookies, so
         # this returns the real page with correct status/headers.
-        await self._navigate(page, url)
+        await self._navigate(url)
 
-    async def _capture(self, page: Page) -> PageContent:
+    async def _capture(self) -> PageContent:
         """Pull page content from the driver, wrapping failures as CaptureFailed."""
         try:
-            return await self.driver.capture(page)
+            return await self.driver.capture()
         except Exception as exc:
             raise CaptureFailed(f"Failed to capture page content: {exc}")

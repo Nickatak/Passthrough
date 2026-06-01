@@ -66,4 +66,15 @@ def create_router(pipeline: Pipeline) -> APIRouter:
             body=result.body,
         )
 
+    @router.post("/restart")
+    async def restart():
+        """Panic button: nuke the browser and relaunch a fresh identity.
+
+        Use when the session gets flagged or the tab wedges - rotates the
+        browser fingerprint and empties the cookie jar. The egress IP is
+        unchanged.
+        """
+        await pipeline.restart()
+        return {"status": "restarted"}
+
     return router

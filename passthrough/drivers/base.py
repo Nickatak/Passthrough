@@ -16,34 +16,47 @@ class PageContent:
 class Driver(ABC):
     """Interface for browser drivers.
 
-    A driver manages browser lifecycle and page interaction.
-    The pipeline calls these methods - it never touches browser
-    APIs directly.
+    A driver manages a single, long-lived browser session: one browser,
+    one context, one reused tab that accumulates cookies and history
+    across requests like a real person's always-on browser. The pipeline
+    calls these methods - it never touches browser APIs directly.
     """
 
     @abstractmethod
     async def start(self) -> None:
-        """Launch the browser. Called once at app startup."""
+        """Launch the browser and create the persistent context and page.
+
+        Called once at app startup, and again by restart() after a nuke.
+        """
         ...
 
     @abstractmethod
-    async def new_page(self) -> Page:
-        """Create a new browser page with stealth config applied."""
+    async def goto(self, url: str) -> None:
+        """Navigate the persistent page to url. Waits for domcontentloaded."""
         ...
 
     @abstractmethod
-    async def goto(self, page: Page, url: str) -> None:
-        """Navigate to url. Waits for domcontentloaded."""
+    def page(self) -> Page:
+        """Return the persistent page so adapters can inspect and act on it."""
         ...
 
     @abstractmethod
-    async def capture(self, page: Page) -> PageContent:
-        """Extract status, headers, cookies, and body from the current page."""
+    async def capture(self) -> PageContent:
+        """Extract status, headers, cookies, and body from the persistent page.
+
+        Cookies are filtered to the navigated host - the shared jar holds
+        every visited site's cookies, but a caller only gets the one it asked for.
+        """
         ...
 
     @abstractmethod
-    async def close_page(self, page: Page) -> None:
-        """Close a page and release its resources."""
+    async def restart(self) -> None:
+        """Nuke the whole browser and relaunch a fresh one.
+
+        Rotates the browser identity: new fingerprint, empty cookie jar,
+        brand-new tab. The panic button for when the current identity is
+        flagged or the tab is wedged. Does not change the egress IP.
+        """
         ...
 
     @abstractmethod
