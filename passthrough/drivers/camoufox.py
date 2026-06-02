@@ -60,6 +60,17 @@ class CamoufoxDriver(Driver):
         assert self._page is not None, "Driver not started"
         return self._page
 
+    def is_alive(self) -> bool:
+        """True if the browser subprocess is still connected.
+
+        After a driver-subprocess crash the handles persist but the connection
+        is dead. is_connected() reads the local flag flipped on disconnect, so
+        this never throws - it lets the pipeline detect a dead browser and
+        rebuild before navigating, instead of 502ing every request until a
+        manual container restart.
+        """
+        return self._browser is not None and self._browser.is_connected()
+
     async def capture(self) -> PageContent:
         """Extract status, headers, cookies, and body from the persistent page.
 
@@ -114,11 +125,24 @@ class CamoufoxDriver(Driver):
         await self.start()
 
     async def stop(self) -> None:
-        """Shut down the browser and Playwright, clearing all session handles."""
-        if self._browser:
-            await self._browser.close()
-        if self._playwright:
-            await self._playwright.stop()
+        """Shut down the browser and Playwright, clearing all session handles.
+
+        Resilient to an already-dead browser: when the driver subprocess has
+        crashed, close()/stop() raise 'Connection closed'. We swallow those so
+        the handles still get cleared and a follow-up start() (from restart()
+        or auto-heal) can relaunch. Without this, a crashed browser would wedge
+        the recovery path - restart() would 500 and never relaunch.
+        """
+        try:
+            if self._browser:
+                await self._browser.close()
+        except Exception:
+            pass
+        try:
+            if self._playwright:
+                await self._playwright.stop()
+        except Exception:
+            pass
         self._browser = None
         self._playwright = None
         self._context = None

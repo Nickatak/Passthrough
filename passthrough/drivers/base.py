@@ -41,6 +41,16 @@ class Driver(ABC):
         ...
 
     @abstractmethod
+    def is_alive(self) -> bool:
+        """True if the browser session is live and usable.
+
+        False after the underlying browser subprocess has crashed (handles
+        linger but the connection is dead). The pipeline checks this before a
+        request and rebuilds the driver if it returns False.
+        """
+        ...
+
+    @abstractmethod
     async def capture(self) -> PageContent:
         """Extract status, headers, cookies, and body from the persistent page.
 

@@ -5,10 +5,12 @@ WORKDIR /opt/passthrough
 # Dependencies first - cached until pyproject.toml changes.
 # Stub __init__.py satisfies hatchling so pip can build without real source.
 COPY pyproject.toml ./
+COPY scripts/ ./scripts/
 RUN mkdir -p passthrough && touch passthrough/__init__.py && \
     pip install --no-cache-dir . && \
     camoufox fetch && \
     playwright install-deps && \
+    python scripts/patch_playwright_pageerror.py && \
     rm -rf /var/lib/apt/lists/*
 
 # Project code - only this layer rebuilds on code changes

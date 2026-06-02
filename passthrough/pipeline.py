@@ -72,6 +72,15 @@ class Pipeline:
         # capture all operate on the one shared tab and must not interleave
         # with another request or a restart.
         async with self._lock:
+            # Step 0: Auto-heal. A prior request can crash the browser
+            # subprocess (e.g. an unguarded page-error in the Playwright driver
+            # triggered by a hostile page). The handles linger but the
+            # connection is dead, so rebuild before touching the tab - otherwise
+            # every request 502s until a manual container restart. Call the
+            # driver's restart directly, not self.restart(), which re-locks.
+            if not self.driver.is_alive():
+                await self.driver.restart()
+
             page = self.driver.page()
 
             # Step 2: Navigate
