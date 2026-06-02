@@ -5,13 +5,16 @@ WORKDIR /opt/passthrough
 # Dependencies first - cached until pyproject.toml changes.
 # Stub __init__.py satisfies hatchling so pip can build without real source.
 COPY pyproject.toml ./
-COPY scripts/ ./scripts/
 RUN mkdir -p passthrough && touch passthrough/__init__.py && \
     pip install --no-cache-dir . && \
     camoufox fetch && \
     playwright install-deps && \
-    python scripts/patch_playwright_pageerror.py && \
     rm -rf /var/lib/apt/lists/*
+
+# Patch the vendored Playwright driver bundle in its own layer, after the heavy
+# deps, so iterating on the patch doesn't re-fetch Firefox or reinstall deps.
+COPY scripts/ ./scripts/
+RUN python scripts/patch_playwright_pageerror.py
 
 # Project code - only this layer rebuilds on code changes
 COPY passthrough/ ./passthrough/
